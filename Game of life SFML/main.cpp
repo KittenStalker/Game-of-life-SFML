@@ -4,9 +4,11 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 
-#include <iostream>
+
 #include <time.h>
 #include "Game.h"
+#include <iostream>
+#include <chrono>
 
 #define WHITE sf::Color::White           //dead
 #define BLACK sf::Color::Black           //live
@@ -21,14 +23,17 @@ int wrapValue(int v, int vMax)
 
 int main()
 {
+
     const int CELL_SIZE = 30;
     const int GRID_WIDTH = 30;
     const int GRID_HEIGHT = 20;
+
     const int N_CELLS = GRID_WIDTH * GRID_HEIGHT;
     const sf::Vector2f CELL_VECTOR(CELL_SIZE, CELL_SIZE);
 
-    const int DELAY_CHANGE = 50;
-    int delay = 100;
+    const int DELAY_CHANGE = 5;             //100 кадров - 1 секунда
+    int delay = 20;
+    int delay_counter = 0;
 
     int grid[N_CELLS] = {};
     int gridNext[N_CELLS] = {};
@@ -44,40 +49,18 @@ int main()
         grid[i] = (rand() % 2) ? 1 : 0;
     }
 
-    //текста
-    sf::Font font;
-    font.loadFromFile("./arial.ttf");
 
-    sf::Text textPause("Press 'p' to pause.", font);
-    textPause.setCharacterSize(15);
-    textPause.setPosition(10, CELL_SIZE * GRID_HEIGHT + 5); //todo поменять на норм
-    textPause.setFillColor(BLACK);
-
-    sf::Text textPlay("Press 'p' to play.", font);
-    textPlay.setCharacterSize(15);
-    textPlay.setPosition(10, CELL_SIZE * GRID_HEIGHT + 5);      //todo поменять на норм
-    textPlay.setFillColor(BLACK);
-
-    sf::Text textToggle("Click on cell to toggle live/dead cell.", font);
-    textToggle.setCharacterSize(15);
-    textToggle.setPosition(10, CELL_SIZE * GRID_HEIGHT + 5);           //todo поменять на норм
-    textToggle.setFillColor(BLACK);
-
-    sf::Text textSpeed("Use left/right arrow keys to change speed.", font);
-    textSpeed.setCharacterSize(15);
-    textSpeed.setPosition(300, CELL_SIZE * GRID_HEIGHT + 5);          //todo поменять на норм
-    textSpeed.setFillColor(BLACK);
-
-
-
-    sf::RenderWindow window(sf::VideoMode(CELL_SIZE * (GRID_WIDTH + 6), CELL_SIZE * GRID_HEIGHT + 50), "Game of Life");  //todo поменять с изменением интерфейса
-    window.setFramerateLimit(60);
+    sf::RenderWindow window(sf::VideoMode(CELL_SIZE * (GRID_WIDTH + 6), CELL_SIZE * GRID_HEIGHT + 50), "Game of Life", sf::Style::Titlebar | sf::Style::Close);  //todo поменять с изменением интерфейса
+    window.setFramerateLimit(100);
         
     ImGui::SFML::Init(window);
     sf::Clock deltaClock;
+    sf::RectangleShape cell;
+
 
     while (window.isOpen())
     {
+        if (isPlaying)delay_counter++;
         sf::Event event;
         while (window.pollEvent(event))
         {
@@ -89,7 +72,10 @@ int main()
                 break;
             case sf::Event::KeyPressed:
                 if (event.key.code == sf::Keyboard::Space)
+                {
                     isPlaying = !isPlaying;
+                    delay_counter = 0;
+                }
                 else if (event.key.code == sf::Keyboard::Right)
                     delay = std::max(delay - DELAY_CHANGE, 0); // prevent negative value
                 else if (event.key.code == sf::Keyboard::Left)
@@ -111,21 +97,65 @@ int main()
             }
         }
 
-        ImGui::SFML::Update(window, deltaClock.restart());
 
-        ImGui::Begin("window title");
-        ImGui::Text("Text");
+        ImGui::SFML::Update(window, deltaClock.restart());
+        ImGui::Begin("Main menu", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+        ImGui::SetWindowPos(ImVec2(GRID_WIDTH * CELL_SIZE, 0), ImGuiCond_Always);
+        ImGui::SetWindowSize(ImVec2(6 * CELL_SIZE, CELL_SIZE * GRID_HEIGHT + 50), ImGuiCond_Always);
+
+        if (!isPlaying)
+            ImGui::Text("Paused!");
+        else
+            ImGui::Text("Simulation in process");
+           
+        ImGui::Text("Timer: %d",delay_counter); //TODO ход
+
+
+        if (ImGui::Button("Clear")) {
+            for (int x = 0; x < GRID_WIDTH; x++)
+                for (int y = 0; y < GRID_HEIGHT; y++)
+                {
+                    grid[x + y * GRID_WIDTH] = 0;
+                }
+        }
+
+        if (ImGui::Button("Random")) {
+            for (int i = 0; i < N_CELLS; i++)
+            {
+                grid[i] = (rand() % 2) ? 1 : 0;
+            }
+        }
+        
+        ImGui::Text("Delay: %d", delay);
+
+        if (ImGui::Button("+")) {
+            delay += DELAY_CHANGE;
+        }
+        if (ImGui::Button("-")) {
+            delay = std::max(delay - DELAY_CHANGE, 1);
+        }
+
+        if (ImGui::Button("FPS LIMIT: 100")) {
+            window.setFramerateLimit(100);
+        }
+
+
+
+        
+
         ImGui::End();
 
 
-        // display grid and prepare gridNext
+
+
+        // display grid and prepare gridNext       переделать мб
         window.clear(WHITE);
         for (int x = 0; x < GRID_WIDTH; x++)
         {
             for (int y = 0; y < GRID_HEIGHT; y++)
             {
                 // draw cell
-                sf::RectangleShape cell;
+                
                 cell.setPosition(x * CELL_SIZE, y * CELL_SIZE);
                 cell.setSize(CELL_VECTOR);
                 cell.setOutlineThickness(1);
@@ -163,22 +193,17 @@ int main()
         ImGui::SFML::Render(window);
 
         // move gridNext to grid
-        if (isPlaying)
+        if (isPlaying && (delay_counter % delay == 0))
             for (int i = 0; i < N_CELLS; i++)
                 grid[i] = gridNext[i];
 
-        //текст
-        window.draw(textSpeed);
-        if (isPlaying)
-            window.draw(textPause);
-        else
-        {
-            window.draw(textPlay);
-            window.draw(textToggle);
-        }
+
 
         window.display();
-        sf::sleep(sf::milliseconds(delay));
+
+
+
+        //sf::sleep(sf::milliseconds(delay));           добавить нормальные ходы
 
     }
     ImGui::SFML::Shutdown();
