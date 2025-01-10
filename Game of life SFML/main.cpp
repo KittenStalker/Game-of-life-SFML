@@ -1,18 +1,34 @@
 ﻿#include "imgui.h"
 #include "imgui-SFML.h"
-
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 
-
 #include <time.h>
-#include "Game.h"
 #include <iostream>
 #include <chrono>
+
+#include "Game.h"
+
 
 #define WHITE sf::Color::White           //dead
 #define BLACK sf::Color::Black           //live
 #define GRAY sf::Color(153, 153, 153)    
+
+const int SCALE = 1;
+
+const int CELL_SIZE = 30 / SCALE;
+const int GRID_WIDTH = 30 * SCALE;
+const int GRID_HEIGHT = 20 * SCALE;
+
+const int N_CELLS = GRID_WIDTH * GRID_HEIGHT;
+const sf::Vector2f CELL_VECTOR(CELL_SIZE, CELL_SIZE);
+
+int grid[N_CELLS] = {};
+int gridNext[N_CELLS] = {};
+
+int frame_counter = 0;
+int frame_general = 0;
+int move = 0;
 
 int wrapValue(int v, int vMax)
 {
@@ -21,22 +37,24 @@ int wrapValue(int v, int vMax)
     return v;
 }
 
+void clear_board() {
+    for (int x = 0; x < GRID_WIDTH; x++)
+        for (int y = 0; y < GRID_HEIGHT; y++)
+        {
+            grid[x + y * GRID_WIDTH] = 0;
+        }
+
+    frame_counter = 0;
+    frame_general = 0;
+    move = 0;
+}
+
 int main()
 {
-
-    const int CELL_SIZE = 30;
-    const int GRID_WIDTH = 30;
-    const int GRID_HEIGHT = 20;
-
-    const int N_CELLS = GRID_WIDTH * GRID_HEIGHT;
-    const sf::Vector2f CELL_VECTOR(CELL_SIZE, CELL_SIZE);
-
-    const int DELAY_CHANGE = 5;             //100 кадров - 1 секунда
+    const int DELAY_MIN = 1;
+    const int DELAY_MAX = 100;
+    
     int delay = 20;
-    int delay_counter = 0;
-
-    int grid[N_CELLS] = {};
-    int gridNext[N_CELLS] = {};
 
     bool isPlaying = true;
 
@@ -50,7 +68,7 @@ int main()
     }
 
 
-    sf::RenderWindow window(sf::VideoMode(CELL_SIZE * (GRID_WIDTH + 6), CELL_SIZE * GRID_HEIGHT + 50), "Game of Life", sf::Style::Titlebar | sf::Style::Close);  //todo поменять с изменением интерфейса
+    sf::RenderWindow window(sf::VideoMode(CELL_SIZE * (GRID_WIDTH + 6), CELL_SIZE * GRID_HEIGHT), "Game of Life", sf::Style::Titlebar | sf::Style::Close);
     window.setFramerateLimit(100);
         
     ImGui::SFML::Init(window);
@@ -60,7 +78,12 @@ int main()
 
     while (window.isOpen())
     {
-        if (isPlaying)delay_counter++;
+        if (isPlaying)
+        {
+            frame_counter++;
+            frame_general++;
+
+        }
         sf::Event event;
         while (window.pollEvent(event))
         {
@@ -74,12 +97,9 @@ int main()
                 if (event.key.code == sf::Keyboard::Space)
                 {
                     isPlaying = !isPlaying;
-                    delay_counter = 0;
+                    frame_counter = 0;
                 }
-                else if (event.key.code == sf::Keyboard::Right)
-                    delay = std::max(delay - DELAY_CHANGE, 0); // prevent negative value
-                else if (event.key.code == sf::Keyboard::Left)
-                    delay += DELAY_CHANGE;
+
                 else if (event.key.code == sf::Keyboard::Escape)
                     window.close();
                     break;
@@ -97,7 +117,6 @@ int main()
             }
         }
 
-
         ImGui::SFML::Update(window, deltaClock.restart());
         ImGui::Begin("Main menu", 0, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
         ImGui::SetWindowPos(ImVec2(GRID_WIDTH * CELL_SIZE, 0), ImGuiCond_Always);
@@ -108,18 +127,16 @@ int main()
         else
             ImGui::Text("Simulation in process");
            
-        ImGui::Text("Timer: %d",delay_counter); //TODO ход
-
+        ImGui::Text("Timer: %d seconds", frame_general / 100);
+        ImGui::Text("Move: %d", move);
 
         if (ImGui::Button("Clear")) {
-            for (int x = 0; x < GRID_WIDTH; x++)
-                for (int y = 0; y < GRID_HEIGHT; y++)
-                {
-                    grid[x + y * GRID_WIDTH] = 0;
-                }
+            clear_board();
+            
         }
 
         if (ImGui::Button("Random")) {
+            clear_board();
             for (int i = 0; i < N_CELLS; i++)
             {
                 grid[i] = (rand() % 2) ? 1 : 0;
@@ -127,26 +144,12 @@ int main()
         }
         
         ImGui::Text("Delay: %d", delay);
-
-        if (ImGui::Button("+")) {
-            delay += DELAY_CHANGE;
-        }
-        if (ImGui::Button("-")) {
-            delay = std::max(delay - DELAY_CHANGE, 1);
-        }
-
-        if (ImGui::Button("FPS LIMIT: 100")) {
-            window.setFramerateLimit(100);
-        }
-
-
-
+        ImGui::SliderInt("Delay", &delay, DELAY_MIN, DELAY_MAX);
         
+        ImGui::Text("Press SPACE to pause");
+        ImGui::Text("Press ESCAPE to close");
 
         ImGui::End();
-
-
-
 
         // display grid and prepare gridNext       переделать мб
         window.clear(WHITE);
@@ -193,17 +196,14 @@ int main()
         ImGui::SFML::Render(window);
 
         // move gridNext to grid
-        if (isPlaying && (delay_counter % delay == 0))
+        if (isPlaying && (frame_counter % delay == 0)){
+            move += 1;
             for (int i = 0; i < N_CELLS; i++)
                 grid[i] = gridNext[i];
-
+        }
 
 
         window.display();
-
-
-
-        //sf::sleep(sf::milliseconds(delay));           добавить нормальные ходы
 
     }
     ImGui::SFML::Shutdown();
