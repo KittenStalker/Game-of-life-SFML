@@ -3,4 +3,6 @@
 ## Simple game of life on SFML + IMGUI
 Space to pause
 
+You can draw tiles when the game is paused
+
 Escape to close
